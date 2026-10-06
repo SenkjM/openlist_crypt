@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze-test:
+    name: dart analyze + dart test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get
+      - run: dart analyze --fatal-infos
+      - name: dart test (pure Dart secretbox)
+        run: dart test
+        env:
+          OPENLIST_CRYPT_LIBSODIUM_PATH: /nonexistent/libsodium.so
+
+  libsodium-ffi:
+    name: test with system libsodium (FFI cross-check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - run: sudo apt-get update && sudo apt-get install -y libsodium23
+      - run: dart pub get
+      - run: dart test test/secretbox_sodium_test.dart
+        env:
+          OPENLIST_CRYPT_LIBSODIUM_PATH: /usr/lib/x86_64-linux-gnu/libsodium.so.23
+
+  publish-dry-run:
+    name: pub publish --dry-run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - run: dart pub publish --dry-run

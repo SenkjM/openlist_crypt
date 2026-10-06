@@ -1,7 +1,7 @@
 # Native libsodium (optional secretbox backend)
 
 Precompiled **libsodium** shared library used only by
-`packages/openlist_crypt` content secretbox (`crypto_secretbox_easy` /
+`openlist_crypt` content secretbox (`crypto_secretbox_easy` /
 `crypto_secretbox_open_easy`). Filename EME / name codecs stay pure Dart.
 
 ## Shipped binary
@@ -34,7 +34,7 @@ tar xzf libsodium-1.0.20.tar.gz && cd libsodium-1.0.20
 export LIBSODIUM_FULL_BUILD=Y
 ./dist-build/android-armv8-a.sh
 cp libsodium-android-armv8-a+crypto/lib/libsodium.so \
-  /path/to/openlist_crypt/native/android/arm64-v8a/libsodium.so
+  native/android/arm64-v8a/libsodium.so
 ```
 
 ## License notices

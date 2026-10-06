@@ -8,8 +8,8 @@ license texts themselves.
 | Component | License (as shipped in-tree) | Location |
 |---|---|---|
 | WebDAV Media Manager (app) | **AGPL-3.0** | repo root `LICENSE` |
-| `packages/openlist_crypt` (Dart port) | **AGPL-3.0** (+ upstream notices for rclone / base32768 / golang.org/x/crypto) | `packages/openlist_crypt/LICENSE`, `packages/openlist_crypt/NOTICE` |
-| libsodium (native `.so`) | **ISC** | `packages/openlist_crypt/native/LICENSE.libsodium` (from upstream 1.0.20) |
+| `openlist_crypt` (Dart port) | **AGPL-3.0** (+ upstream notices for rclone / base32768 / golang.org/x/crypto) | `LICENSE`, `NOTICE` |
+| libsodium (native `.so`) | **ISC** | `native/LICENSE.libsodium` (from upstream 1.0.20) |
 
 ## What the ISC text requires (verbatim gist)
 
@@ -31,7 +31,7 @@ itself re-license libsodium as AGPL—the ISC terms still apply to that binary.
 Keep conveying:
 
 1. AGPL-3.0 for app and Dart sources (`LICENSE` / package `LICENSE`).
-2. Upstream attributions in `packages/openlist_crypt/NOTICE`.
+2. Upstream attributions in `NOTICE`.
 3. libsodium ISC notice (`native/LICENSE.libsodium`) alongside the binary.
 
 ## Notices to keep when shipping an APK that includes the `.so`

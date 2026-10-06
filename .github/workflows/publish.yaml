@@ -1,0 +1,24 @@
+# Publishes to pub.dev via OIDC when a version tag (vX.Y.Z) is pushed.
+#
+# Prerequisites (one-time, manual):
+#   1. Publish the first version manually (`dart pub publish`), because
+#      automated publishing can only be enabled for an existing package.
+#   2. On pub.dev → package Admin → Automated publishing: enable GitHub
+#      Actions, repository `SenkjM/openlist_crypt`, tag pattern `v{{version}}`.
+#   3. (Recommended) require the `pub.dev` GitHub environment.
+#
+# Nothing is published unless such a tag is pushed.
+name: Publish to pub.dev
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+jobs:
+  publish:
+    permissions:
+      id-token: write # required for OIDC authentication with pub.dev
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    with:
+      environment: pub.dev

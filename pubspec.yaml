@@ -1,14 +1,21 @@
 name: openlist_crypt
 description: >-
-  Pure-Dart implementation of the rclone/OpenList "crypt" encrypted-storage
-  format: scrypt key derivation, EME filename encryption, XSalsa20-Poly1305
-  content blocks, and base32/base64/base32768 filename encodings. Wire
-  compatible with rclone backend/crypt and OpenList/Alist crypt storage.
-version: 0.2.1
-publish_to: none
-repository: https://github.com/SenkjM/Webdav_Media_Manager
-issue_tracker: https://github.com/SenkjM/Webdav_Media_Manager/issues
-# The package targets Dart (no Flutter); it stays usable from Flutter apps.
+  rclone / OpenList crypt storage format in Dart: scrypt keys, EME filename
+  encryption, XSalsa20-Poly1305 content, optional libsodium FFI backend.
+version: 0.1.0
+homepage: https://github.com/SenkjM/openlist_crypt
+repository: https://github.com/SenkjM/openlist_crypt
+issue_tracker: https://github.com/SenkjM/openlist_crypt/issues
+topics:
+  - rclone
+  - encryption
+  - cryptography
+  - openlist
+  - webdav
+
+# Pure Dart (no Flutter dependency); usable from Flutter apps, CLIs and servers.
+# Uses dart:io / dart:ffi for the optional libsodium backend, so web is not
+# supported.
 environment:
   sdk: ^3.5.0
 
@@ -19,6 +26,3 @@ dependencies:
 dev_dependencies:
   lints: ^6.0.0
   test: ^1.25.0
-
-# This package is developed in-tree next to the app that consumes it; when it
-# moves to its own repository, drop `publish_to: none` and add topics/homepage.
