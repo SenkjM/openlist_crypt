@@ -82,7 +82,8 @@ jobs:
             adb logcat -c
             adb shell am start -n com.example.verify_app/.MainActivity
             sleep 20
-            adb logcat -d | grep OPENLIST_CRYPT_VERIFY | tee verify.log
+            adb logcat -d > logcat.txt
+            grep OPENLIST_CRYPT_VERIFY logcat.txt | tee verify.log || (echo 'no OPENLIST_CRYPT_VERIFY line; flutter/crash logcat:'; grep -E ' flutter|AndroidRuntime|FATAL|verify_app' logcat.txt | tail -80)
             grep -q 'loaded=true path=asset:package:openlist_crypt/libsodium' verify.log
 
   linux:
