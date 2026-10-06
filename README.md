@@ -142,15 +142,19 @@ for (final block in enc.close()) sink.add(block);
 | Android x86_64 | ✅ | 同上 | ✅ 本地实测 APK 剔除；🔄 CI（含 x86_64 模拟器运行时加载） |
 | Android x86 | ✅ | 同上 | ⚠️ Flutter 已不构建 `android-x86` 目标，Flutter App 中不会打包；仅非 Flutter 宿主可用 |
 | Linux x64 | ✅ `libsodium.so`（glibc ≥ 2.17） | 官方源码，Zig 交叉编译 | ✅ 本地实测：`flutter build linux` bundle 只含 x64 库，运行时加载随包库；`dart test` 加载随包库 |
-| Linux arm64 | ✅（glibc ≥ 2.17） | 同上 | ✅ 本地 qemu 功能测试（dlopen + secretbox 向量）；🔄 CI（ubuntu-24.04-arm 构建 + 运行） |
-| macOS arm64 / x64 | ✅ `libsodium.dylib`（≥ 11.0 / ≥ 10.15） | 官方源码，Zig 交叉编译 | 🔄 仅 CI（`dart test` + `flutter build macos` + 运行） |
-| Windows x64 | ✅ `libsodium.dll` | **官方预编译 DLL**（msvc zip，未修改） | 🔄 仅 CI（`dart test` + `flutter build windows`） |
-| Windows arm64 | ✅ `libsodium.dll` | 官方源码，Zig（mingw-w64/UCRT）交叉编译 | 🔄 仅 CI（windows-11-arm） |
-| iOS（真机 arm64 / 模拟器 arm64、x86_64） | ⏳ 尚未提交 | `Build libsodium (iOS)` 工作流用 Xcode 从官方源码构建，审核后提交到 `native/ios/` | 目前回退纯 Dart；🔄 CI 检查 `flutter build ios` 可构建 |
+| Linux arm64 | ✅（glibc ≥ 2.17） | 同上 | ✅ 本地 qemu 功能测试（dlopen + secretbox 向量）；⏸️ CI 默认跳过（ubuntu-24.04-arm 构建 + 运行） |
+| macOS arm64 / x64 | ✅ `libsodium.dylib`（≥ 11.0 / ≥ 10.15） | 官方源码，Zig 交叉编译 | ⏸️ 仅 CI，默认跳过（`dart test` + `flutter build macos` + 运行） |
+| Windows x64 | ✅ `libsodium.dll` | **官方预编译 DLL**（msvc zip，未修改） | ⏸️ 仅 CI，默认跳过（`dart test` + `flutter build windows`） |
+| Windows arm64 | ✅ `libsodium.dll` | 官方源码，Zig（mingw-w64/UCRT）交叉编译 | ⏸️ 仅 CI，默认跳过（windows-11-arm） |
+| iOS（真机 arm64 / 模拟器 arm64、x86_64） | ⏳ 尚未提交 | `Build libsodium (iOS)` 工作流用 Xcode 从官方源码构建，审核后提交到 `native/ios/` | 目前回退纯 Dart；⏸️ CI（`flutter build ios`）默认跳过 |
 | Web | ❌ | — | 不支持（依赖 `dart:io` / `dart:ffi`） |
 
-✅ = 已在盒子上实际验证；🔄 = 仅由 GitHub Actions 构建/测试（见
-`.github/workflows/`）；⏳ = 待补。
+✅ = 已在盒子上实际验证；🔄 = 由 GitHub Actions 构建/测试（见
+`.github/workflows/`）；⏸️ = CI 有定义但默认跳过；⏳ = 待补。
+
+> **目前只有 Android 是正式支持并在 CI 中阻塞验证的平台。** Linux / macOS /
+> Windows / iOS 的预编译库虽已随包，但**其他平台暂未实装**（未完成端到端验证），
+> 对应 CI job 默认跳过，打开方式见下文 [CI 说明](#ci-说明)。
 
 ### 只打包目标架构
 
@@ -203,6 +207,35 @@ OPENLIST_CRYPT_LIBSODIUM_PATH=/usr/lib/x86_64-linux-gnu/libsodium.so.23 dart tes
 
 打包剔除验证用的 Flutter App 在 [`tool/verify_app/`](tool/verify_app/)。
 
+## CI 说明
+
+| 工作流 | Job | 默认 | 是否阻塞 |
+|---|---|---|---|
+| `ci.yaml` | `dart analyze --fatal-infos` + `dart test` | 运行 | ✅ 阻塞 |
+| `ci.yaml` | `dart pub publish --dry-run` | 运行 | ✅ 阻塞 |
+| `ci.yaml` | `OPENLIST_CRYPT_LIBSODIUM_PATH` 覆盖（系统 libsodium） | 运行 | ✅ 阻塞 |
+| `flutter-build.yaml` | `android`（ABI 剔除断言 + 16 KB 对齐检查） | 运行 | ✅ 阻塞 |
+| `flutter-build.yaml` | `android-emulator`（x86_64 模拟器运行时加载） | 运行 | `continue-on-error`（托管 runner 上模拟器偶有抖动） |
+| `ci.yaml` | `bundled libsodium (<os>)`（Linux / macOS / Windows 矩阵） | **跳过** | 否（`continue-on-error`） |
+| `flutter-build.yaml` | `linux` / `macos` / `ios` / `windows` | **跳过** | 否（`continue-on-error`） |
+| `libsodium-apple.yaml` | 构建 iOS libsodium | 仅手动触发 | — |
+
+**其他平台暂未实装，CI 默认跳过。** 这些 job 的定义保留在工作流里，统一由一个开关
+控制（`if: vars.ENABLE_NON_ANDROID_CI == 'true' || inputs.non_android == true`），
+并带 `continue-on-error: true`，打开后即使失败也不会把整体结果标红。打开方式：
+
+- **长期打开**：仓库 Settings → Secrets and variables → Actions → Variables，新增
+  仓库变量 `ENABLE_NON_ANDROID_CI` = `true`（或
+  `gh variable set ENABLE_NON_ANDROID_CI --body true -R SenkjM/openlist_crypt`）；
+  删除该变量或改成其他值即恢复默认跳过。
+- **单次运行**：Actions → `CI` / `Flutter build matrix` → Run workflow，勾选
+  `non_android`（或 `gh workflow run ci.yaml -f non_android=true`、
+  `gh workflow run flutter-build.yaml -f non_android=true`）。
+- iOS libsodium 构建：Actions → `Build libsodium (iOS)` → Run workflow（不再随 push
+  自动触发）。
+
+某个平台正式实装后，把对应 job 的 `if:` / `continue-on-error:` 去掉即可让它常驻并阻塞。
+
 ## 许可证（AGPL-3.0）
 
 本包采用 **GNU AGPL-3.0**，见 [LICENSE](LICENSE)。上游声明（rclone MIT、
@@ -245,6 +278,11 @@ against rclone v1.75.1 golden vectors) and OpenList/Alist crypt storage.
   the build target**. iOS binaries are not committed yet (pure-Dart fallback).
   Opt out with the `bundle_libsodium: false` hook user-define. Provenance and
   SHA-256: [native/README.md](native/README.md).
+- **Only Android is officially supported and gated in CI for now.** The other
+  platforms are not fully implemented yet: their CI jobs are kept but skipped
+  by default and non-blocking (`continue-on-error`). Enable them with the
+  repository variable `ENABLE_NON_ANDROID_CI=true`, or one-off via
+  *Run workflow* with `non_android` ticked (see [CI 说明](#ci-说明)).
 - **License: AGPL-3.0.** Distributing an app that links this package (or
   offering a modified version over a network) generally requires releasing the
   corresponding source under AGPL-compatible terms. The bundled libsodium binary

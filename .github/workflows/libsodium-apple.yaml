@@ -4,14 +4,9 @@
 # and commits it under native/ios/. Nothing is pushed or published here.
 name: Build libsodium (iOS)
 
+# Manual only (Actions -> Build libsodium (iOS) -> Run workflow); no push trigger.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - tool/libsodium/build_ios.sh
-      - tool/libsodium/common.sh
-      - .github/workflows/libsodium-apple.yaml
 
 permissions:
   contents: read
