@@ -1,0 +1,205 @@
+# Builds tool/verify_app for every Flutter target and checks that only the
+# target architecture's libsodium is packaged (and, where the runner can run
+# the app, that it loads at runtime). Nothing is published.
+name: Flutter build matrix
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  APP: tool/verify_app
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Generate platform folders
+        working-directory: ${{ env.APP }}
+        run: flutter create --platforms=android --project-name verify_app .
+      - name: split-per-abi
+        working-directory: ${{ env.APP }}
+        run: |
+          flutter build apk --release --split-per-abi
+          d=build/app/outputs/flutter-apk
+          ../check_android_apk.sh $d/app-armeabi-v7a-release.apk armeabi-v7a
+          ../check_android_apk.sh $d/app-arm64-v8a-release.apk arm64-v8a
+          ../check_android_apk.sh $d/app-x86_64-release.apk x86_64
+          mkdir -p /tmp/apks && cp $d/app-x86_64-release.apk /tmp/apks/
+      - name: --target-platform android-arm64
+        working-directory: ${{ env.APP }}
+        run: |
+          flutter build apk --release --target-platform android-arm64
+          ../check_android_apk.sh build/app/outputs/flutter-apk/app-release.apk arm64-v8a
+      - name: default fat APK
+        working-directory: ${{ env.APP }}
+        run: |
+          flutter build apk --release
+          ../check_android_apk.sh build/app/outputs/flutter-apk/app-release.apk arm64-v8a,armeabi-v7a,x86_64
+      - name: 16 KB page alignment
+        run: |
+          ZA=$(ls -d $ANDROID_HOME/build-tools/*/ | sort -V | tail -1)zipalign
+          $ZA -c -P 16 -v 4 $APP/build/app/outputs/flutter-apk/app-release.apk | grep -E 'libsodium|Verification'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-x86_64
+          path: /tmp/apks/app-x86_64-release.apk
+
+  android-emulator:
+    # Runtime check on an x86_64 emulator: the app logs
+    # "OPENLIST_CRYPT_VERIFY loaded=true path=asset:package:openlist_crypt/libsodium".
+    needs: android
+    runs-on: ubuntu-latest
+    continue-on-error: true # emulator boots can be flaky on hosted runners
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk-x86_64
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          script: |
+            adb install -r app-x86_64-release.apk
+            adb logcat -c
+            adb shell am start -n com.example.verify_app/.MainActivity
+            sleep 20
+            adb logcat -d | grep OPENLIST_CRYPT_VERIFY | tee verify.log
+            grep -q 'loaded=true path=asset:package:openlist_crypt/libsodium' verify.log
+
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev xvfb
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Build
+        working-directory: ${{ env.APP }}
+        run: |
+          flutter create --platforms=linux --project-name verify_app .
+          flutter build linux --release
+      - name: Inspect bundle and run
+        working-directory: ${{ env.APP }}
+        run: |
+          b=build/linux/${{ matrix.arch }}/release/bundle
+          ls -l $b/lib
+          file $b/lib/libsodium.so
+          test "$(ls $b/lib | grep -c sodium)" = 1
+          VERIFY_EXIT=1 xvfb-run -a $b/verify_app | tee run.log
+          grep -q 'loaded=true path=asset:package:openlist_crypt/libsodium' run.log
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Build
+        working-directory: ${{ env.APP }}
+        run: |
+          flutter create --platforms=macos --project-name verify_app .
+          flutter build macos --release
+      - name: Inspect bundle and run
+        working-directory: ${{ env.APP }}
+        run: |
+          app=build/macos/Build/Products/Release/verify_app.app
+          find $app/Contents/Frameworks -maxdepth 1 | sort
+          fw=$(find $app/Contents/Frameworks -maxdepth 1 -iname '*sodium*.framework' | head -1)
+          test -n "$fw"
+          bin=$fw/$(basename $fw .framework)
+          lipo -info $bin
+          otool -L $bin
+          VERIFY_EXIT=1 $app/Contents/MacOS/verify_app | tee run.log
+          grep -q 'loaded=true path=asset:package:openlist_crypt/libsodium' run.log
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Build (device, no codesign) and simulator
+        working-directory: ${{ env.APP }}
+        run: |
+          flutter create --platforms=ios --project-name verify_app .
+          flutter build ios --release --no-codesign
+          flutter build ios --simulator --debug
+      - name: Inspect
+        working-directory: ${{ env.APP }}
+        run: |
+          for app in build/ios/iphoneos/Runner.app build/ios/iphonesimulator/Runner.app; do
+            echo "== $app"
+            find $app/Frameworks -maxdepth 1 | sort
+            fw=$(find $app/Frameworks -maxdepth 1 -iname '*sodium*.framework' | head -1)
+            if [ -n "$fw" ]; then
+              lipo -info $fw/$(basename $fw .framework)
+            elif [ -f ../../native/ios/iphoneos/arm64/libsodium.dylib ]; then
+              echo "iOS prebuilt present but not bundled" >&2; exit 1
+            else
+              echo "No iOS prebuilt committed yet -> pure Dart fallback (expected)."
+            fi
+          done
+
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            arch: x64
+          - runner: windows-11-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.arch == 'arm64' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Build
+        working-directory: ${{ env.APP }}
+        shell: bash
+        run: |
+          flutter create --platforms=windows --project-name verify_app .
+          flutter build windows --release
+      - name: Inspect bundle and run
+        working-directory: ${{ env.APP }}
+        shell: bash
+        run: |
+          d=build/windows/${{ matrix.arch }}/runner/Release
+          ls -l $d
+          test -f $d/libsodium.dll
+          VERIFY_EXIT=1 ./$d/verify_app.exe > run.log 2>&1 || true
+          cat run.log

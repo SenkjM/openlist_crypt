@@ -20,13 +20,39 @@ jobs:
           sdk: stable
       - run: dart pub get
       - run: dart analyze --fatal-infos
-      - name: dart test (pure Dart secretbox)
-        run: dart test
-        env:
-          OPENLIST_CRYPT_LIBSODIUM_PATH: /nonexistent/libsodium.so
+      - run: dart test
 
-  libsodium-ffi:
-    name: test with system libsodium (FFI cross-check)
+  native-asset:
+    # `dart test` runs hook/build.dart, which bundles the prebuilt libsodium
+    # for the runner's OS/arch; the test asserts the bundled asset is the one
+    # that loads and that it matches the pure-Dart secretbox byte-for-byte.
+    name: bundled libsodium (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest      # linux x64
+          - ubuntu-24.04-arm   # linux arm64
+          - macos-latest       # macOS arm64
+          - macos-15-intel     # macOS x64
+          - windows-latest     # windows x64
+          - windows-11-arm     # windows arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get
+      - name: dart test (expect bundled libsodium)
+        run: dart test test/native_asset_test.dart test/secretbox_sodium_test.dart
+        env:
+          OPENLIST_CRYPT_EXPECT_BUNDLED: 'true'
+      - name: dart test (full suite)
+        run: dart test
+
+  system-libsodium:
+    name: OPENLIST_CRYPT_LIBSODIUM_PATH override (system libsodium)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +64,7 @@ jobs:
           OPENLIST_CRYPT_LIBSODIUM_PATH: /usr/lib/x86_64-linux-gnu/libsodium.so.23
 
   publish-dry-run:
-    name: pub publish --dry-run
+    name: dart pub publish --dry-run
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -1,0 +1,36 @@
+# Builds the iOS libsodium dylibs (device arm64, simulator arm64 + x86_64)
+# from the official, signature-verified libsodium 1.0.20 source on a macOS
+# runner and uploads them as an artifact. A maintainer reviews the artifact
+# and commits it under native/ios/. Nothing is pushed or published here.
+name: Build libsodium (iOS)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tool/libsodium/build_ios.sh
+      - tool/libsodium/common.sh
+      - .github/workflows/libsodium-apple.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install minisign
+      - run: tool/libsodium/build_ios.sh
+      - name: Inspect
+        run: |
+          for f in native/ios/*/*/libsodium.dylib; do
+            echo "== $f"; lipo -info "$f"; otool -l "$f" | grep -A4 LC_BUILD_VERSION | grep -E 'platform|minos'
+            otool -L "$f"
+          done
+          (cd native && shasum -a 256 ios/*/*/libsodium.dylib) | tee native/ios/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libsodium-ios-1.0.20
+          path: native/ios
