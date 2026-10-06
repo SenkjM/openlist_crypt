@@ -1,0 +1,19 @@
+# Minimal Flutter app used by CI (and locally) to verify that only the
+# target architecture's libsodium is packaged and that it loads at runtime.
+# Platform folders are generated on the fly: `flutter create --platforms=... .`
+name: verify_app
+description: openlist_crypt native-asset packaging verification app.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  openlist_crypt:
+    path: ../..
+
+flutter:
+  uses-material-design: true

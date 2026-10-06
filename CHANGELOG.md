@@ -31,8 +31,18 @@ Optional libsodium backend (content secretbox only):
 - `preferLibsodiumSecretbox()` / `preferDartSecretbox()`,
   `--dart-define=OPENLIST_CRYPT_LIBSODIUM=true`, `OPENLIST_CRYPT_LIBSODIUM_PATH`.
   Pure Dart remains the default; filename/EME codecs never use libsodium.
-- Bundled prebuilt Android **arm64-v8a** `libsodium.so` (official 1.0.20,
-  ISC). Other ABIs fall back to pure Dart.
+- Prebuilt libsodium 1.0.20 (ISC) for Android armeabi-v7a / arm64-v8a / x86 /
+  x86_64 (16 KB page aligned), Linux x64 / arm64, macOS arm64 / x64 and
+  Windows x64 / arm64, built from the minisign-verified official source (the
+  Windows x64 DLL is the official msvc build). iOS binaries are not included
+  yet; iOS uses pure Dart.
+- `hook/build.dart` (Dart/Flutter native assets) bundles **only the binary for
+  the build target** (per Android ABI, per desktop/iOS architecture). Opt out
+  with the `bundle_libsodium: false` hook user-define.
+- Runtime loading: `OPENLIST_CRYPT_LIBSODIUM_PATH` → bundled asset
+  `package:openlist_crypt/libsodium` → platform library names; falls back to
+  pure Dart when nothing loads.
+- Requires Dart 3.10+ (build hooks).
 
 Licensing:
 

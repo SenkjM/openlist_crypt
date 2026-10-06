@@ -6,6 +6,8 @@ import 'secretbox_sodium.dart';
 export 'secretbox_dart.dart' show kSecretboxOverhead, secretboxOpenDart, secretboxSealDart;
 export 'secretbox_sodium.dart'
     show
+        kLibsodiumAssetId,
+        kLibsodiumBundledAssetLabel,
         libsodiumLoadError,
         libsodiumLoadedPath,
         libsodiumSecretboxReady,

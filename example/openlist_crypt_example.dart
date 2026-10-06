@@ -25,15 +25,19 @@ void main() {
   // Optional: prefer libsodium for content blocks. Returns false (and keeps
   // the pure-Dart path) if no libsodium library can be loaded.
   final sodium = preferLibsodiumSecretbox();
-  stdout.writeln(sodium
-      ? 'secretbox backend: libsodium ($libsodiumLoadedPath)'
-      : 'secretbox backend: pure Dart');
+  stdout.writeln(
+    sodium
+        ? 'secretbox backend: libsodium ($libsodiumLoadedPath)'
+        : 'secretbox backend: pure Dart',
+  );
 
   // Content round trip.
   final plain = Uint8List.fromList(utf8.encode('Hello, rclone crypt!'));
   final encrypted = cipher.encrypt(plain);
   final decrypted = cipher.decrypt(encrypted);
-  stdout.writeln('${plain.length} B plain -> ${encrypted.length} B encrypted '
-      '(expected ${RcloneCipher.encryptedSize(plain.length)}) -> '
-      '"${utf8.decode(decrypted)}"');
+  stdout.writeln(
+    '${plain.length} B plain -> ${encrypted.length} B encrypted '
+    '(expected ${RcloneCipher.encryptedSize(plain.length)}) -> '
+    '"${utf8.decode(decrypted)}"',
+  );
 }

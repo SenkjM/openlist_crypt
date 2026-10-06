@@ -100,10 +100,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------
 4. libsodium 1.0.20 — https://github.com/jedisct1/libsodium
-   (OPTIONAL bundled native binary, unmodified official build:
-   native/android/arm64-v8a/libsodium.so)
-   License: ISC — the binary remains under ISC; it is NOT relicensed under
-   AGPL-3.0. Full text also in native/LICENSE.libsodium.
+   (OPTIONAL bundled native binaries under native/: Android armeabi-v7a,
+   arm64-v8a, x86, x86_64; Linux x64, arm64; macOS arm64, x64; Windows x64,
+   arm64. Built from the official, minisign-verified source tarball
+   libsodium-1.0.20.tar.gz
+   (SHA-256 ebb65ef6ca439333c2bb41a0c1990587288da07f6c7fd07cb3a18cc18d30ce19)
+   without source modifications; the Windows x64 DLL is the unmodified
+   official build from libsodium-1.0.20-msvc.zip
+   (SHA-256 2ff97f9e3f5b341bdc808e698057bea1ae454f99e29ff6f9b62e14d0eb1b1baa).
+   Per-file SHA-256 and build details: native/README.md, native/SHA256SUMS.)
+   License: ISC — the binaries remain under ISC; they are NOT relicensed
+   under AGPL-3.0. Full text also in native/LICENSE.libsodium.
 
 ISC License
 

@@ -7,13 +7,16 @@
 `crypt` 后端或 OpenList / Alist crypt 存储加密的远端目录（文件内容 + 文件名），
 与 rclone 字节级兼容，用 rclone v1.75.1 `backend/crypt` 的黄金向量验证。
 
-- 纯 Dart，无 Flutter 依赖：Flutter App、CLI、服务端均可用（Dart 3.5+）。
+- 纯 Dart，无 Flutter 依赖：Flutter App、CLI、服务端均可用（Dart 3.10+，
+  native assets 构建 hook 需要）。
 - 默认全部走纯 Dart 实现；**仅文件内容**的 secretbox（XSalsa20-Poly1305）可
   选用 libsodium（FFI）加速。
 - EME 文件名加密、文件名编码、scrypt 密钥派生**始终是纯 Dart**，不受
   libsodium 开关影响。
-- 预编译 libsodium `.so` 目前**只提供 Android `arm64-v8a`**；其它 ABI / 平台
-  找不到库时自动回退纯 Dart。
+- 随包提供 Android / Linux / macOS / Windows 各架构的预编译 libsodium 1.0.20，
+  由构建 hook（Dart/Flutter native assets）**只打包目标架构对应的那一个**；
+  没有预编译库的目标（目前是 iOS）或加载失败时自动回退纯 Dart。见
+  [支持矩阵](#平台支持矩阵)。
 
 > English summary: see [English](#english) at the bottom.
 
@@ -111,7 +114,7 @@ for (final block in enc.close()) sink.add(block);
    final ok = preferLibsodiumSecretbox();          // 找不到库 → 静默回退 Dart，返回 false
    preferLibsodiumSecretbox(require: true);        // 找不到库 → secretbox 调用抛 StateError
    preferDartSecretbox();                          // 强制回到纯 Dart
-   print(libsodiumLoadedPath ?? libsodiumLoadError); // 诊断
+   print(libsodiumLoadedPath ?? libsodiumLoadError); // 诊断；随包库显示 asset:package:openlist_crypt/libsodium
    ```
 
 2. **编译期默认值**：`--dart-define=OPENLIST_CRYPT_LIBSODIUM=true`
@@ -119,30 +122,63 @@ for (final block in enc.close()) sink.add(block);
    仍会在加载失败时回退 Dart（除非 `secretboxRequireLibsodium = true`）。
 
 3. **库路径覆盖**：环境变量 `OPENLIST_CRYPT_LIBSODIUM_PATH=/abs/path/libsodium.so`
-   优先尝试该路径。之后依次尝试：Android 打包的 `libsodium.so`、Linux 常见
-   soname（`libsodium.so.26` / `.23` / `libsodium.so`）、macOS 常见路径。
+   优先尝试该路径（调试/自定义构建）。
 
-### 预编译 `.so`：仅 arm64-v8a
+加载顺序：`OPENLIST_CRYPT_LIBSODIUM_PATH` → 随包 native asset
+（`package:openlist_crypt/libsodium`，由 Flutter/Dart 按平台放置并解析）→
+平台默认名（Android/Linux `libsodium.so`；macOS `libsodium.dylib` /
+`sodium.framework`；Windows `libsodium.dll` / `libsodium-26.dll`；以及系统常见
+路径）→ 全部失败则纯 Dart。
 
-| ABI / 平台 | 预编译库 | 行为 |
-|---|---|---|
-| Android `arm64-v8a` | ✅ `native/android/arm64-v8a/libsodium.so`（官方 libsodium 1.0.20，NDK r27c） | 宿主 App 打包后可用 libsodium |
-| Android `armeabi-v7a` / `x86_64` / `x86` | ❌ | 回退纯 Dart |
-| iOS / macOS / Windows / Linux 桌面 | ❌（不随包提供） | 若系统已装 libsodium 或设置了 `OPENLIST_CRYPT_LIBSODIUM_PATH` 则使用，否则回退纯 Dart |
-| Web | ❌ | 不支持（包依赖 `dart:io` / `dart:ffi`） |
+### 平台支持矩阵
 
-**注意：** 这是纯 Dart 包，**不会**自动把 `native/` 里的 `.so` 打进 Flutter
-APK。Android 宿主 App 需要自行把它加入 `jniLibs`，例如：
+预编译库均为 libsodium **1.0.20**（来源、构建方式与 SHA-256 见
+[`native/README.md`](native/README.md) / [`native/SHA256SUMS`](native/SHA256SUMS)）。
 
-```kotlin
-// android/app/build.gradle.kts
-android {
-    sourceSets["main"].jniLibs.srcDir("<path-to>/openlist_crypt/native/android")
-}
+| 平台 / ABI | 预编译库 | 来源 | 验证情况 |
+|---|---|---|---|
+| Android arm64-v8a | ✅ `libsodium.so` | 官方源码 + 官方 dist-build 脚本，NDK r27c，16 KB 对齐 | ✅ 本地实测：APK 只含对应 ABI（split-per-abi / --target-platform / abiFilters）；🔄 CI 构建检查 |
+| Android armeabi-v7a | ✅ | 同上 | ✅ 本地实测 APK 剔除；🔄 CI |
+| Android x86_64 | ✅ | 同上 | ✅ 本地实测 APK 剔除；🔄 CI（含 x86_64 模拟器运行时加载） |
+| Android x86 | ✅ | 同上 | ⚠️ Flutter 已不构建 `android-x86` 目标，Flutter App 中不会打包；仅非 Flutter 宿主可用 |
+| Linux x64 | ✅ `libsodium.so`（glibc ≥ 2.17） | 官方源码，Zig 交叉编译 | ✅ 本地实测：`flutter build linux` bundle 只含 x64 库，运行时加载随包库；`dart test` 加载随包库 |
+| Linux arm64 | ✅（glibc ≥ 2.17） | 同上 | ✅ 本地 qemu 功能测试（dlopen + secretbox 向量）；🔄 CI（ubuntu-24.04-arm 构建 + 运行） |
+| macOS arm64 / x64 | ✅ `libsodium.dylib`（≥ 11.0 / ≥ 10.15） | 官方源码，Zig 交叉编译 | 🔄 仅 CI（`dart test` + `flutter build macos` + 运行） |
+| Windows x64 | ✅ `libsodium.dll` | **官方预编译 DLL**（msvc zip，未修改） | 🔄 仅 CI（`dart test` + `flutter build windows`） |
+| Windows arm64 | ✅ `libsodium.dll` | 官方源码，Zig（mingw-w64/UCRT）交叉编译 | 🔄 仅 CI（windows-11-arm） |
+| iOS（真机 arm64 / 模拟器 arm64、x86_64） | ⏳ 尚未提交 | `Build libsodium (iOS)` 工作流用 Xcode 从官方源码构建，审核后提交到 `native/ios/` | 目前回退纯 Dart；🔄 CI 检查 `flutter build ios` 可构建 |
+| Web | ❌ | — | 不支持（依赖 `dart:io` / `dart:ffi`） |
+
+✅ = 已在盒子上实际验证；🔄 = 仅由 GitHub Actions 构建/测试（见
+`.github/workflows/`）；⏳ = 待补。
+
+### 只打包目标架构
+
+构建 hook（[`hook/build.dart`](hook/build.dart)）由 Dart/Flutter 工具链**按目标
+OS/架构逐个调用**，每次只返回一个库文件，所以：
+
+- `flutter build apk --split-per-abi`：每个 APK 只含自己 ABI 的 `libsodium.so`；
+- `flutter build apk --target-platform android-arm64`：只含 `arm64-v8a`；
+- 默认 `flutter build apk` / `appbundle`：含 Flutter 默认的 arm、arm64、x64 三个
+  ABI（与 `libflutter.so` 一致）；
+- 想用 Gradle `abiFilters` 时，需要同时在 `android/gradle.properties` 设置
+  `disable-abi-filtering=true`，否则 Flutter Gradle 插件会覆盖 `abiFilters`
+  （这对 `libflutter.so` 同样适用）；
+- 桌面 / iOS 只打包当前构建目标架构的库（macOS 通用包会合并 arm64 + x64）。
+
+**不需要 libsodium？** 在 App 的 `pubspec.yaml` 中关闭打包，App 中不会有任何
+本包的原生库，运行时纯 Dart：
+
+```yaml
+hooks:
+  user_defines:
+    openlist_crypt:
+      bundle_libsodium: false
 ```
 
-或把 `native/android/arm64-v8a/libsodium.so` 复制到
-`android/app/src/main/jniLibs/arm64-v8a/`。详见 [`native/README.md`](native/README.md)。
+> 从旧的手动 `jniLibs` 方式迁移：hook 已自动把 `.so` 放进 `lib/<abi>/`，请删除
+> 宿主 `build.gradle.kts` 里指向本包 `native/android` 的 `jniLibs.srcDir`，否则
+> 会出现重复的 `lib/<abi>/libsodium.so`。
 
 ## 兼容性说明
 
@@ -159,10 +195,13 @@ android {
 ```bash
 dart pub get
 dart analyze
-dart test
-# 用系统 libsodium 跑 FFI 交叉测试（可选）：
+dart test                                   # hook 会为本机打包 libsodium
+OPENLIST_CRYPT_EXPECT_BUNDLED=true dart test test/native_asset_test.dart
+# 用其它 libsodium 跑 FFI 交叉测试（可选）：
 OPENLIST_CRYPT_LIBSODIUM_PATH=/usr/lib/x86_64-linux-gnu/libsodium.so.23 dart test
 ```
+
+打包剔除验证用的 Flutter App 在 [`tool/verify_app/`](tool/verify_app/)。
 
 ## 许可证（AGPL-3.0）
 
@@ -177,7 +216,7 @@ Max-Sum/base32768 MIT、golang.org/x/crypto BSD-3-Clause、libsodium ISC）见
 - AGPL 第 13 条额外要求：若修改后的程序**通过网络向用户提供服务**，也需向这些
   用户提供对应源码。
 - 闭源 / 专有项目一般不能直接使用本包；请自行评估或联系作者。
-- 随包的 `libsodium.so` 仍是 **ISC** 许可（未被重新授权为 AGPL），再分发时须保留
+- 随包的 libsodium 预编译库仍是 **ISC** 许可（未被重新授权为 AGPL），再分发时须保留
   [`native/LICENSE.libsodium`](native/LICENSE.libsodium) 中的版权与许可声明。
   详见 [`native/LICENSE_NOTE.md`](native/LICENSE_NOTE.md)。
 
@@ -200,9 +239,12 @@ against rclone v1.75.1 golden vectors) and OpenList/Alist crypt storage.
   `--dart-define=OPENLIST_CRYPT_LIBSODIUM=true`, or point
   `OPENLIST_CRYPT_LIBSODIUM_PATH` at a `libsodium` shared library. EME /
   filename codecs / scrypt are always pure Dart.
-- **The bundled prebuilt `libsodium.so` (1.0.20) is Android `arm64-v8a` only.**
-  Other ABIs and platforms fall back to pure Dart unless a system libsodium is
-  found. The host app must add `native/android` to its `jniLibs` itself.
+- **Prebuilt libsodium 1.0.20** for Android (armeabi-v7a, arm64-v8a, x86,
+  x86_64), Linux (x64, arm64), macOS (arm64, x64) and Windows (x64, arm64) is
+  bundled by a build hook (native assets) that packages **only the binary for
+  the build target**. iOS binaries are not committed yet (pure-Dart fallback).
+  Opt out with the `bundle_libsodium: false` hook user-define. Provenance and
+  SHA-256: [native/README.md](native/README.md).
 - **License: AGPL-3.0.** Distributing an app that links this package (or
   offering a modified version over a network) generally requires releasing the
   corresponding source under AGPL-compatible terms. The bundled libsodium binary

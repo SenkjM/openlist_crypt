@@ -20,3 +20,10 @@
 # Test related
 coverage/
 pubspec.lock
+
+# CI verification app: only the sources are tracked; platform folders are
+# generated with `flutter create`.
+tool/verify_app/*
+!tool/verify_app/pubspec.yaml
+!tool/verify_app/lib/
+!tool/verify_app/README.md

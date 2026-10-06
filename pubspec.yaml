@@ -15,12 +15,15 @@ topics:
 
 # Pure Dart (no Flutter dependency); usable from Flutter apps, CLIs and servers.
 # Uses dart:io / dart:ffi for the optional libsodium backend, so web is not
-# supported.
+# supported. Dart 3.10+ is required for build hooks (native assets), which
+# bundle the prebuilt libsodium for the target platform/ABI only.
 environment:
-  sdk: ^3.5.0
+  sdk: ^3.10.0
 
 dependencies:
+  code_assets: ^2.0.0
   ffi: ^2.1.0
+  hooks: ^2.0.0
   pointycastle: ^4.0.0
 
 dev_dependencies:

@@ -1,0 +1,8 @@
+# Same as .gitignore plus CI-only material.
+.dart_tool/
+.pub/
+build/
+pubspec.lock
+coverage/
+tool/verify_app/
+.github/
